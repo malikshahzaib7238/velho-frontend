@@ -1,123 +1,117 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { ArrowUpDown, RefreshCw } from 'lucide-react';
+import TradingChart from '../components/TradingChart';
+import {  Activity, Wallet, TrendingUp } from 'lucide-react';
 
-// Interfaces based on your backend types
 interface ExOrder {
-  ID?: string;
+  ID: string;
   Size: number;
   Price: number;
   Bid: boolean;
   UserID: string;
   Timestamp: string;
   Market: string;
+  OrderType: 'LIMIT' | 'MARKET';
 }
 
 interface OrderBookResponse {
   asks: ExOrder[];
   bids: ExOrder[];
-  totalAskVolume: number;
-  totalBidVolume: number;
+  total_ask_volume: number;
+  total_bid_volume: number;
 }
 
 interface Trade {
-  price: number;
-  size: number;
-  timestamp: string;
-  side: 'buy' | 'sell';
+  Price: number;
+  Size: number;
+  Timestamp: string;
+  Bid: boolean;
 }
 
-const TradingPage: React.FC = () => {
-  // State for market and order configuration
-  const [selectedMarket, setSelectedMarket] = useState<string>('BTC/USDT');
+const TradingPage = () => {
+  const [selectedMarket, setSelectedMarket] = useState('BTC/USDT');
   const [orderType, setOrderType] = useState<'LIMIT' | 'MARKET'>('LIMIT');
-  const [orderSide, setOrderSide] = useState<boolean>(true); // true for bid/buy, false for ask/sell
+  const [orderSide, setOrderSide] = useState(true);
   
-  // User and order states
-  const [userId, setUserId] = useState<string>('');
-  const [price, setPrice] = useState<string>('');
-  const [amount, setAmount] = useState<string>('');
+  const [userId, setUserId] = useState('');
+  const [price, setPrice] = useState('');
+  const [amount, setAmount] = useState('');
   
-  // Data states
   const [orderBook, setOrderBook] = useState<OrderBookResponse>({
     asks: [],
     bids: [],
-    totalAskVolume: 0,
-    totalBidVolume: 0
+    total_ask_volume: 0,
+    total_bid_volume: 0
   });
   const [trades, setTrades] = useState<Trade[]>([]);
-  const [bestBidPrice, setBestBidPrice] = useState<number>(0);
-  const [bestAskPrice, setBestAskPrice] = useState<number>(0);
+  const [bestBidPrice, setBestBidPrice] = useState(0);
+  const [bestAskPrice, setBestAskPrice] = useState(0);
   
-  // Error and loading states
   const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
 
-  // Markets list
   const markets = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT'];
 
-  // Fetch order book
   const fetchOrderBook = async () => {
     try {
-      setIsLoading(true);
-      const response = await axios.get('/orderbook', {
+      const response = await axios.get<OrderBookResponse>('/orderbook', {
         params: { market: selectedMarket }
       });
       setOrderBook(response.data);
+      setLastUpdate(new Date());
     } catch (err) {
-      // setError('Failed to fetch order book');
-    } finally {
-      setIsLoading(false);
+      setError('Failed to fetch order book');
+      setTimeout(() => setError(null), 5000);
     }
   };
 
-  // Fetch best prices
   const fetchBestPrices = async () => {
     try {
-      const bidResponse = await axios.get('/book/bid', {
-        params: { market: selectedMarket }
-      });
-      const askResponse = await axios.get('/book/ask', {
-        params: { market: selectedMarket }
-      });
+      const [bidResponse, askResponse] = await Promise.all([
+        axios.get('/book/bid', { params: { market: selectedMarket } }),
+        axios.get('/book/ask', { params: { market: selectedMarket } })
+      ]);
 
       setBestBidPrice(bidResponse.data.price);
       setBestAskPrice(askResponse.data.price);
     } catch (err) {
-      // setError('Failed to fetch best prices');
+      setError('Failed to fetch best prices');
+      setTimeout(() => setError(null), 5000);
     }
   };
 
-  // Fetch trades
   const fetchTrades = async () => {
     try {
       const response = await axios.get('/trade', {
         params: { market: selectedMarket }
       });
-
-      // Transform trades to match frontend interface
-      const formattedTrades = response.data.trades.map((trade: any) => ({
-        price: trade.Price,
-        size: trade.Size,
-        timestamp: new Date(trade.Timestamp).toLocaleString(),
-        side: trade.Bid ? 'buy' : 'sell'
-      }));
-
-      setTrades(formattedTrades);
+      setTrades(response.data.trades || []);
     } catch (err) {
-      // setError('Failed to fetch trades');
+      setError('Failed to fetch trades');
+      setTimeout(() => setError(null), 5000);
     }
   };
 
-  // Place order
   const handlePlaceOrder = async () => {
-    // Validate inputs
     if (!userId) {
-      setError('Please log in first');
+      setError('Please enter a user ID');
+      return;
+    }
+
+    if (!amount || parseInt(amount) <= 0) {
+      setError('Please enter a valid amount');
+      return;
+    }
+
+    if (orderType === 'LIMIT' && (!price || parseFloat(price) <= 0)) {
+      setError('Please enter a valid price for limit order');
       return;
     }
 
     try {
+      setIsLoading(true);
       const orderPayload = {
         order_type: orderType,
         price: orderType === 'LIMIT' ? parseFloat(price) : 0,
@@ -130,45 +124,58 @@ const TradingPage: React.FC = () => {
         params: { user: userId }
       });
 
-      // Handle successful order placement
-      alert(`Order placed successfully. Order ID: ${response.data.id}`);
-
-      // Reset form and refresh data
-      setPrice('');
-      setAmount('');
-      fetchOrderBook();
-      fetchTrades();
+      if (response.data.status === 'success') {
+        setPrice('');
+        setAmount('');
+        fetchOrderBook();
+        fetchTrades();
+        fetchBestPrices();
+      }
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to place order');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // Fetch data on component mount and market change
-  useEffect(() => {
+  const refreshData = () => {
     fetchOrderBook();
     fetchBestPrices();
     fetchTrades();
-  }, [selectedMarket]);
+  };
 
-  // Render error if exists
-  if (error) {
-    return (
-      <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
-        {error}
-        <button
-          onClick={() => setError(null)}
-          className="absolute top-0 right-0 px-4 py-3"
-        >
-          ×
-        </button>
-      </div>
-    );
-  }
+  useEffect(() => {
+    refreshData();
+    const interval = setInterval(refreshData, 10000);
+    return () => clearInterval(interval);
+  }, [selectedMarket]);
 
   return (
     <div className="min-h-screen bg-gray-900 text-white">
       <div className="container mx-auto px-4 py-8">
-        {/* User ID Input (for testing) */}
+        {error && (
+console.log(error)
+        )}
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-3xl font-bold flex items-center">
+            <TrendingUp className="mr-3" /> Velho Exchange
+          </h1>
+          <div className="flex items-center space-x-4">
+            {!userId ? (
+              <button
+
+                className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded flex items-center"
+              >
+                <Wallet className="mr-2" /> Register
+              </button>
+            ) : (
+              <div className="bg-blue-600 px-4 py-2 rounded">
+                User ID: {userId.slice(0, 6)}...
+              </div>
+            )}
+          </div>
+        </div>
+
         <div className="mb-4">
           <label className="block text-gray-400 mb-2">User ID</label>
           <input
@@ -180,7 +187,6 @@ const TradingPage: React.FC = () => {
           />
         </div>
 
-        {/* Market Selector */}
         <div className="flex justify-between items-center mb-8">
           <div className="flex space-x-4">
             {markets.map(market => (
@@ -199,32 +205,32 @@ const TradingPage: React.FC = () => {
           </div>
           <div className="flex items-center space-x-2">
             <RefreshCw
-              className="text-gray-400 cursor-pointer"
-              onClick={() => {
-                fetchOrderBook();
-                fetchBestPrices();
-                fetchTrades();
-              }}
+              className={`text-gray-400 cursor-pointer ${isLoading ? 'animate-spin' : ''}`}
+              onClick={refreshData}
             />
-            <span className="text-sm text-gray-400">Last updated: Just now</span>
+            <span className="text-sm text-gray-400">
+              Last updated: {lastUpdate.toLocaleTimeString()}
+            </span>
           </div>
         </div>
 
-        {/* Trading Interface */}
+<div className="mb-8">
+  <TradingChart market={selectedMarket} timeframe="1D" />
+</div>
         <div className="grid md:grid-cols-3 gap-6">
-          {/* Order Book */}
           <div className="bg-gray-800 rounded-lg p-4">
             <div className="flex justify-between mb-4">
               <h2 className="text-xl font-semibold">Order Book</h2>
               <span className="text-sm text-gray-400">{selectedMarket}</span>
             </div>
             
-            {/* Bids */}
             <div className="mb-4">
-              <h3 className="text-green-500 font-bold mb-2">Bids (Total Volume: {orderBook.totalBidVolume})</h3>
+              <h3 className="text-green-500 font-bold mb-2">
+                Bids (Total Volume: {orderBook.total_bid_volume?.toFixed(2)})
+              </h3>
               {orderBook.bids.map((bid, index) => (
                 <div
-                  key={index}
+                  key={bid.ID || index}
                   className="flex justify-between text-green-400 hover:bg-gray-700 px-2 py-1 rounded"
                 >
                   <span>{bid.Price.toFixed(2)}</span>
@@ -233,12 +239,13 @@ const TradingPage: React.FC = () => {
               ))}
             </div>
 
-            {/* Asks */}
             <div>
-              <h3 className="text-red-500 font-bold mb-2">Asks (Total Volume: {orderBook.totalAskVolume})</h3>
+              <h3 className="text-red-500 font-bold mb-2">
+                Asks (Total Volume: {orderBook.total_ask_volume?.toFixed(2)})
+              </h3>
               {orderBook.asks.map((ask, index) => (
                 <div
-                  key={index}
+                  key={ask.ID || index}
                   className="flex justify-between text-red-400 hover:bg-gray-700 px-2 py-1 rounded"
                 >
                   <span>{ask.Price.toFixed(2)}</span>
@@ -248,7 +255,6 @@ const TradingPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Trading Form */}
           <div className="bg-gray-800 rounded-lg p-6">
             <div className="flex justify-between mb-4">
               <div className="flex space-x-2">
@@ -297,7 +303,6 @@ const TradingPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Price Input (for Limit Orders) */}
             {orderType === 'LIMIT' && (
               <div className="mb-4">
                 <label className="block text-gray-400 mb-2">Price</label>
@@ -306,12 +311,15 @@ const TradingPage: React.FC = () => {
                   value={price}
                   onChange={(e) => setPrice(e.target.value)}
                   className="w-full bg-gray-700 rounded px-3 py-2"
-                  placeholder={`Enter price (Best ${orderSide ? 'Ask' : 'Bid'}: ${orderSide ? bestAskPrice : bestBidPrice})`}
+                  placeholder={`Best ${orderSide ? 'Ask' : 'Bid'}: ${
+                    orderSide ? bestAskPrice : bestBidPrice
+                  }`}
+                  min="0"
+                  step="0.01"
                 />
               </div>
             )}
 
-            {/* Amount Input */}
             <div className="mb-4">
               <label className="block text-gray-400 mb-2">Amount</label>
               <input 
@@ -320,34 +328,36 @@ const TradingPage: React.FC = () => {
                 onChange={(e) => setAmount(e.target.value)}
                 className="w-full bg-gray-700 rounded px-3 py-2"
                 placeholder="Enter amount"
+                min="0"
+                step="1"
               />
             </div>
 
-            {/* Total */}
             <div className="mb-4 flex justify-between">
               <span>Total</span>
               <span>
-                {orderType === 'LIMIT'
+                {orderType === 'LIMIT' && price && amount
                   ? (parseFloat(price) * parseFloat(amount)).toFixed(2)
                   : '-'
                 } USDT
               </span>
             </div>
 
-            {/* Place Order Button */}
             <button 
               onClick={handlePlaceOrder}
+              disabled={isLoading}
               className={`w-full py-3 rounded ${
-                orderSide
-                  ? 'bg-green-600 hover:bg-green-700' 
-                  : 'bg-red-600 hover:bg-red-700'
+                isLoading
+                  ? 'bg-gray-600'
+                  : orderSide
+                    ? 'bg-green-600 hover:bg-green-700'
+                    : 'bg-red-600 hover:bg-red-700'
               }`}
             >
-              {orderSide ? 'Buy' : 'Sell'} {selectedMarket}
+              {isLoading ? 'Processing...' : `${orderSide ? 'Buy' : 'Sell'} ${selectedMarket}`}
             </button>
           </div>
 
-          {/* Recent Trades */}
           <div className="bg-gray-800 rounded-lg p-4">
             <div className="flex justify-between mb-4">
               <h2 className="text-xl font-semibold">Recent Trades</h2>
@@ -357,14 +367,16 @@ const TradingPage: React.FC = () => {
               <div 
                 key={index} 
                 className={`flex justify-between px-2 py-1 rounded ${
-                  trade.side === 'buy' 
+                  trade.Bid
                     ? 'text-green-400 hover:bg-green-900/20' 
                     : 'text-red-400 hover:bg-red-900/20'
                 }`}
               >
-                <span>{trade.price.toFixed(2)}</span>
-                <span>{trade.size}</span>
-                <span className="text-gray-500">{trade.timestamp}</span>
+                <span>{trade.Price.toFixed(2)}</span>
+                <span>{trade.Size}</span>
+                <span className="text-gray-500">
+                  {new Date(trade.Timestamp).toLocaleTimeString()}
+                </span>
               </div>
             ))}
           </div>
