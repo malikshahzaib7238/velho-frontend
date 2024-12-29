@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
+    "@radix-ui/react-dropdown-menu": "^2.1.4",
     "@shadcn/ui": "^0.0.4",
     "axios": "^1.7.9",
     "class-variance-authority": "^0.7.1",

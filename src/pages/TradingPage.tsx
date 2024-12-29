@@ -1,35 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { ArrowUpDown, RefreshCw } from 'lucide-react';
+import {  RefreshCw } from 'lucide-react';
 import TradingChart from '../components/TradingChart';
-import {  Activity, Wallet, TrendingUp } from 'lucide-react';
+import {  Wallet, TrendingUp } from 'lucide-react';
 
-interface ExOrder {
-  ID: string;
-  Size: number;
-  Price: number;
-  Bid: boolean;
-  UserID: string;
-  Timestamp: string;
-  Market: string;
-  OrderType: 'LIMIT' | 'MARKET';
-}
-
-interface OrderBookResponse {
-  asks: ExOrder[];
-  bids: ExOrder[];
-  total_ask_volume: number;
-  total_bid_volume: number;
-}
-
-interface Trade {
-  Price: number;
-  Size: number;
-  Timestamp: string;
-  Bid: boolean;
-}
 
 const TradingPage = () => {
+  const userID = localStorage.getItem('user');
   const [selectedMarket, setSelectedMarket] = useState('BTC/USDT');
   const [orderType, setOrderType] = useState<'LIMIT' | 'MARKET'>('LIMIT');
   const [orderSide, setOrderSide] = useState(true);
@@ -38,13 +15,14 @@ const TradingPage = () => {
   const [price, setPrice] = useState('');
   const [amount, setAmount] = useState('');
   
-  const [orderBook, setOrderBook] = useState<OrderBookResponse>({
+
+  const [orderBook, setOrderBook] = useState({
     asks: [],
     bids: [],
     total_ask_volume: 0,
     total_bid_volume: 0
   });
-  const [trades, setTrades] = useState<Trade[]>([]);
+  const [trades, setTrades] = useState([]);
   const [bestBidPrice, setBestBidPrice] = useState(0);
   const [bestAskPrice, setBestAskPrice] = useState(0);
   
@@ -52,11 +30,11 @@ const TradingPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
 
-  const markets = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT'];
+  const markets = ['BTC/USDT'];
 
   const fetchOrderBook = async () => {
     try {
-      const response = await axios.get<OrderBookResponse>('/orderbook', {
+      const response = await axios.get('http://localhost:3000/trade/orderbook', {
         params: { market: selectedMarket }
       });
       setOrderBook(response.data);
@@ -70,8 +48,8 @@ const TradingPage = () => {
   const fetchBestPrices = async () => {
     try {
       const [bidResponse, askResponse] = await Promise.all([
-        axios.get('/book/bid', { params: { market: selectedMarket } }),
-        axios.get('/book/ask', { params: { market: selectedMarket } })
+        axios.get('http://localhost:3000/trade/book/bid', { params: { market: selectedMarket } }),
+        axios.get('http://localhost:3000/trade/book/ask', { params: { market: selectedMarket } })
       ]);
 
       setBestBidPrice(bidResponse.data.price);
@@ -84,7 +62,7 @@ const TradingPage = () => {
 
   const fetchTrades = async () => {
     try {
-      const response = await axios.get('/trade', {
+      const response = await axios.get('http://localhost:3000/trade', {
         params: { market: selectedMarket }
       });
       setTrades(response.data.trades || []);
@@ -120,7 +98,7 @@ const TradingPage = () => {
         market: selectedMarket
       };
 
-      const response = await axios.post('/order', orderPayload, {
+      const response = await axios.post('http://localhost:3000/trade/order', orderPayload, {
         params: { user: userId }
       });
 
@@ -161,7 +139,7 @@ console.log(error)
             <TrendingUp className="mr-3" /> Velho Exchange
           </h1>
           <div className="flex items-center space-x-4">
-            {!userId ? (
+            {!localStorage.getItem('user') ? (
               <button
 
                 className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded flex items-center"
@@ -170,22 +148,13 @@ console.log(error)
               </button>
             ) : (
               <div className="bg-blue-600 px-4 py-2 rounded">
-                User ID: {userId.slice(0, 6)}...
+                User ID: {localStorage.getItem('user').slice(0, 6)}...
               </div>
             )}
           </div>
         </div>
 
-        <div className="mb-4">
-          <label className="block text-gray-400 mb-2">User ID</label>
-          <input
-            type="text"
-            value={userId}
-            onChange={(e) => setUserId(e.target.value)}
-            className="w-full bg-gray-700 rounded px-3 py-2"
-            placeholder="Enter User ID"
-          />
-        </div>
+
 
         <div className="flex justify-between items-center mb-8">
           <div className="flex space-x-4">

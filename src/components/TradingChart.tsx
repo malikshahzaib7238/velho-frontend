@@ -27,46 +27,43 @@ const TradingChart = ({ market, timeframe = '1D' }: ChartProps) => {
   // Timeframe options
   const timeframes = ['1H', '4H', '1D', '1W', '1M'];
   const [selectedTimeframe, setSelectedTimeframe] = useState(timeframe);
-  
+
   // Generate dummy data
-  const generateDummyData = (timeframe: string): PriceData[] => {
-    const data: PriceData[] = [];
+  const generateDummyData = (basePrice: number): PriceData => {
     const now = new Date();
-    let basePrice = 45000; // Starting price for BTC/USDT
-    let points = 100;
-    
-    // Adjust base price based on market
-    if (market.startsWith('ETH')) {
-      basePrice = 2500;
-    } else if (market.startsWith('SOL')) {
-      basePrice = 100;
-    }
-    
-    // Generate random price movements
-    for (let i = points; i >= 0; i--) {
-      const timestamp = new Date(now.getTime() - i * 3600000); // Hour intervals
-      const randomChange = (Math.random() - 0.5) * (basePrice * 0.02); // 2% max change
-      const price = basePrice + randomChange;
-      const volume = Math.random() * 100 + 50;
-      
-      basePrice = price; // Use this price as the base for the next point
-      
-      data.push({
-        timestamp: timestamp.toISOString(),
-        price: parseFloat(price.toFixed(2)),
-        volume: parseFloat(volume.toFixed(2))
-      });
-    }
-    
-    return data;
+    const randomChange = (Math.random() - 0.5) * (basePrice * 0.02); // 2% max change
+    const price = basePrice + randomChange;
+    const volume = Math.random() * 100 + 50;
+
+    return {
+      timestamp: now.toISOString(),
+      price: parseFloat(price.toFixed(2)),
+      volume: parseFloat(volume.toFixed(2))
+    };
   };
 
   const [chartData, setChartData] = useState<PriceData[]>([]);
 
   useEffect(() => {
-    // In real implementation, fetch data from backend
-    setChartData(generateDummyData(selectedTimeframe));
-  }, [market, selectedTimeframe]);
+    let basePrice = 45000; // Starting price for BTC/USDT
+
+    // Simulate data updates every 5 seconds
+    const interval = setInterval(() => {
+      const newData = generateDummyData(basePrice);
+      basePrice = newData.price; // Update base price for the next point
+
+      // Limit the data points to 100 to prevent excessive growth
+      setChartData((prevData) => {
+        const updatedData = [...prevData, newData];
+        if (updatedData.length > 100) {
+          updatedData.shift(); // Keep only the last 100 data points
+        }
+        return updatedData;
+      });
+    }, 5000); // Update every 5 seconds
+
+    return () => clearInterval(interval); // Cleanup interval on component unmount
+  }, [market]);
 
   // Format timestamp based on timeframe
   const formatXAxis = (timestamp: string) => {
