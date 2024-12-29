@@ -11,61 +11,44 @@ import {
 } from 'recharts';
 import { Card, CardHeader, CardTitle, CardContent } from './ui/Card';
 
-// Types for our chart data
-interface PriceData {
-  timestamp: string;
-  price: number;
-  volume: number;
-}
-
-interface ChartProps {
-  market: string;
-  timeframe: string;
-}
-
-const TradingChart = ({ market, timeframe = '1D' }: ChartProps) => {
-  // Timeframe options
+const TradingChart = ({ market, timeframe = '1D' }) => {
   const timeframes = ['1H', '4H', '1D', '1W', '1M'];
   const [selectedTimeframe, setSelectedTimeframe] = useState(timeframe);
+  const [chartData, setChartData] = useState([]);
 
-  // Generate dummy data
-  const generateDummyData = (basePrice: number): PriceData => {
-    const now = new Date();
-    const randomChange = (Math.random() - 0.5) * (basePrice * 0.02); // 2% max change
-    const price = basePrice + randomChange;
-    const volume = Math.random() * 100 + 50;
+  const fetchData = async () => {
+    try {
+      const response = await fetch(`http://localhost:3000/trade?market=${market}`);
+      const data = await response.json();
 
-    return {
-      timestamp: now.toISOString(),
-      price: parseFloat(price.toFixed(2)),
-      volume: parseFloat(volume.toFixed(2))
-    };
+      // Check if data contains trades property (or adjust based on actual response)
+      if (data && Array.isArray(data.trades)) {
+        const formattedData = data.trades.map((trade: any) => ({
+          timestamp: new Date(trade.Timestamp / 1000000).toISOString(),
+          price: trade.Price,
+          volume: trade.Size * trade.Price,
+        }));
+
+        // Sort data by timestamp in descending order (latest data will appear on the right)
+        formattedData.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+        setChartData(formattedData);
+      } else {
+        console.error('Invalid data structure:', data);
+      }
+    } catch (error) {
+      console.error('Error fetching data:', error);
+    }
   };
 
-  const [chartData, setChartData] = useState<PriceData[]>([]);
-
   useEffect(() => {
-    let basePrice = 45000; // Starting price for BTC/USDT
+    fetchData(); // Fetch initial data on mount
+    const interval = setInterval(fetchData, 1000); // Fetch data every second (1000ms)
 
-    // Simulate data updates every 5 seconds
-    const interval = setInterval(() => {
-      const newData = generateDummyData(basePrice);
-      basePrice = newData.price; // Update base price for the next point
+    // Cleanup interval when component unmounts or market/selectedTimeframe changes
+    return () => clearInterval(interval);
+  }, [market, selectedTimeframe]); // Re-run when `market` or `selectedTimeframe` changes
 
-      // Limit the data points to 100 to prevent excessive growth
-      setChartData((prevData) => {
-        const updatedData = [...prevData, newData];
-        if (updatedData.length > 100) {
-          updatedData.shift(); // Keep only the last 100 data points
-        }
-        return updatedData;
-      });
-    }, 5000); // Update every 5 seconds
-
-    return () => clearInterval(interval); // Cleanup interval on component unmount
-  }, [market]);
-
-  // Format timestamp based on timeframe
   const formatXAxis = (timestamp: string) => {
     const date = new Date(timestamp);
     switch (selectedTimeframe) {
@@ -83,7 +66,6 @@ const TradingChart = ({ market, timeframe = '1D' }: ChartProps) => {
     }
   };
 
-  // Custom tooltip
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       return (
@@ -139,6 +121,7 @@ const TradingChart = ({ market, timeframe = '1D' }: ChartProps) => {
               dataKey="timestamp"
               tickFormatter={formatXAxis}
               stroke="#9CA3AF"
+              reversed={true} // Reverse the X-Axis to show latest data on the right
             />
             <YAxis
               yAxisId="left"
