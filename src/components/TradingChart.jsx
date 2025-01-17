@@ -9,7 +9,7 @@ import {
   Legend,
   ResponsiveContainer
 } from 'recharts';
-import { Card, CardHeader, CardTitle, CardContent } from './ui/Card';
+import { Card, CardHeader, CardTitle, CardContent } from "./ui/Card";
 
 const TradingChart = ({ market, timeframe = '1D' }) => {
   const timeframes = ['1H', '4H', '1D', '1W', '1M'];
@@ -18,12 +18,12 @@ const TradingChart = ({ market, timeframe = '1D' }) => {
 
   const fetchData = async () => {
     try {
-      const response = await fetch(`http://localhost:3000/trade?market=${market}`);
+      const response = await fetch(`http://localhost:3000/trade?market=ETH`);
       const data = await response.json();
 
       // Check if data contains trades property (or adjust based on actual response)
       if (data && Array.isArray(data.trades)) {
-        const formattedData = data.trades.map((trade: any) => ({
+        const formattedData = data.trades.map((trade) => ({
           timestamp: new Date(trade.Timestamp / 1000000).toISOString(),
           price: trade.Price,
           volume: trade.Size * trade.Price,
@@ -49,7 +49,7 @@ const TradingChart = ({ market, timeframe = '1D' }) => {
     return () => clearInterval(interval);
   }, [market, selectedTimeframe]); // Re-run when `market` or `selectedTimeframe` changes
 
-  const formatXAxis = (timestamp: string) => {
+  const formatXAxis = (timestamp) => {
     const date = new Date(timestamp);
     switch (selectedTimeframe) {
       case '1H':
@@ -66,7 +66,7 @@ const TradingChart = ({ market, timeframe = '1D' }) => {
     }
   };
 
-  const CustomTooltip = ({ active, payload, label }: any) => {
+  const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
       return (
         <div className="bg-gray-800 border border-gray-700 p-2 rounded shadow">

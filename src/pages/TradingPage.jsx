@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { RefreshCw, Wallet, TrendingUp } from 'lucide-react';
-import TradingChart from '../components/TradingChart';
+import TradingChart from '../components/TradingChart.jsx';
 
 const TradingPage = () => {
   const API_BASE_URL = 'http://localhost:3000';
@@ -142,7 +142,7 @@ const TradingPage = () => {
 
   const fetchTrades = async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/trade?market=BTC`);
+      const response = await axios.get(`${API_BASE_URL}/trade?market=ETH`);
       const timestampInSeconds = response.data.Timestamp / 1000000000;
 
 // Create a new Date object
